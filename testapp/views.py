@@ -5,7 +5,9 @@ from .models import *
 from .serializers import *
 import json
 from django.http import JsonResponse
+from django.forms.models import model_to_dict
 from django.views.decorators.csrf import csrf_exempt
+from django.apps import apps
 # Create your views here.
 
 # class GetProfiles(APIView):
@@ -79,6 +81,38 @@ from django.views.decorators.csrf import csrf_exempt
 #             return Response("posted sucecessfully")
 #         except Exception as exec:
 #             return Response({"error":str(exec)})
+def convert(objs,many):
+    """ coverts any model object to dictionary"""
+    data=[]
+    if many:
+        for obj in objs:
+            dic={}
+            for field in obj._meta.fields:
+                key = field.name
+                value = getattr(obj, key)
+                if field.is_relation:
+                  value.__dict__.pop('_state')
+                  
+                  dic[key]=value.__dict__
+                else:
+                    dic[key]=value
+            data.append(dic)
+
+    else:
+            
+            for field in objs._meta.fields:
+                key = field.name
+                value = getattr(objs, key)
+                if field.is_relation:
+                      value.__dict__.pop('_state')
+                      value.__dict__.pop('id')
+                      data[key]=value.__dict__
+                else:
+                    data[key]=value
+    
+    return data
+       
+
 def modify_data(data):
         skilldata=data.get('skills')
         obj=Skill.objects.filter(skill=skilldata)
@@ -91,17 +125,21 @@ def modify_data(data):
         return data          
 """ function based"""  
 @csrf_exempt  
-def GetProfiles(request):
+def Profile_crud(request):
     if request.method=='GET':   
         if request.GET.get('uname'):
             objs=Profile.objects.filter(username__contains=request.query_params.get('uname'))
+            data=convert(objs,many=True)
         elif request.GET.get('id'):
-            objs=Profile.objects.get(id=request.query_params.get('id'))
+            objs=Profile.objects.get(id=request.GET.get('id'))
+            data=convert(objs,many=False)
         else:
             objs=Profile.objects.all()
-        serializer=ProfileSerializer(objs,many=True)  
+            data=convert(objs,many=True)
+
+        
       
-        return JsonResponse(serializer.data,safe=False)
+        return JsonResponse(data,safe=False)
     elif request.method=='POST':
         data=json.loads(request.body)
         mdata=modify_data(data)
@@ -113,8 +151,6 @@ def GetProfiles(request):
             return JsonResponse({"error":str(exc)})
             
     elif request.method=='DELETE':
-        
-
         id=json.loads(request.body)['id']
         if id :
             try:
@@ -134,17 +170,13 @@ def GetProfiles(request):
             return JsonResponse("data updated",safe=False)
         except Exception as exec:
             return JsonResponse({"error":str(exec)}) 
-
-            
-            
-            
-            
+      
 @csrf_exempt       
 def SkillA(request):
     if request.method=='GET':
         objs=Skill.objects.all()
-        serializer=SkillSerializer(objs,many=True)
-        return JsonResponse(serializer.data,safe=False)
+        data=convert(objs,many=True)
+        return JsonResponse(data,safe=False)
     
     if request.method=='POST':
         try:
